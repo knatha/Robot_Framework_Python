@@ -2,6 +2,6 @@ robotframework==7.1.1
 robotframework-browser==19.5.0
 robotframework-requests==0.9.7
 robotframework-databaselibrary==1.4.4
-robotframework-seleniumlibrary==6.4.0
-robotframework-pabot==4.0.3
+robotframework-seleniumlibrary==6.7.1
+robotframework-pabot==5.0.0
 allure-robotframework==2.13.5
