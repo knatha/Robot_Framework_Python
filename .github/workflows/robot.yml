@@ -6,6 +6,10 @@ on:
   schedule:
     - cron: "0 2 * * *"   # runs daily at 02:00 UTC
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
@@ -48,7 +52,6 @@ jobs:
           name: smoke-artifacts
           path: smoke_results/
           retention-days: 7
-
 
   # 1) Full matrix after smoke (so we still get artifacts if it fails)
   tests:
@@ -100,3 +103,41 @@ jobs:
           name: robot-results-${{ matrix.browser }}
           path: results/
           retention-days: 7
+
+  allure-pages:
+    if: ${{ always() && needs.tests.result != 'skipped' }}
+    needs: tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # allow pushing to gh-pages
+    steps:
+      - uses: actions/checkout@v4
+
+      # Download all per-browser artifacts produced by "tests" job
+      - name: Download results artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: robot-results-*
+          path: ./artifacts
+          merge-multiple: true
+
+      # Collect every ".../results/allure" directory into a single comma list
+      - name: Collect Allure results dirs
+        id: collect
+        run: |
+          set -e
+          dirs=$(find ./artifacts -type d -path "*/results/allure" | tr '\n' ',' | sed 's/,$//')
+          echo "dirs=$dirs" >> $GITHUB_OUTPUT
+          if [ -n "$dirs" ]; then echo "has_dirs=true" >> $GITHUB_OUTPUT; else echo "has_dirs=false" >> $GITHUB_OUTPUT; fi
+          echo "Found dirs: ${dirs:-<none>}"
+
+      # Generate & publish Allure report to gh-pages with history
+      - name: Generate & publish Allure to GitHub Pages
+        if: ${{ steps.collect.outputs.has_dirs == 'true' }}
+        uses: simple-elf/allure-report-action@v1.7
+        with:
+          allure_results: ${{ steps.collect.outputs.dirs }}  # comma-separated dirs
+          allure_report: ./allure-report
+          gh_pages: gh-pages
+          keep_reports: 20
+          publish: true
