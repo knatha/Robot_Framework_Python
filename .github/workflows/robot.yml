@@ -3,6 +3,8 @@ name: Robot CI (smoke first)
 on:
   push:
   workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"   # runs daily at 02:00 UTC
 
 jobs:
   smoke:
@@ -83,14 +85,13 @@ jobs:
         run: |
           . .venv/bin/activate
           rfbrowser init
-      - name: Run Robot tests (Pabot)
+      - name: Run Robot tests (Pabot + Allure)
         env:
-          HEADLESS: "True"
-          BROWSER: ${{ matrix.browser }}
+            HEADLESS: "True"
+            BROWSER: ${{ matrix.browser }}
         run: |
-          . .venv/bin/activate
-          mkdir -p results
-          pabot -d results --processes 2 tests
+            . .venv/bin/activate
+            pabot --listener "allure_robotframework;results/allure" -d results --processes 2 tests
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
