@@ -35,22 +35,38 @@ jobs:
           . .venv/bin/activate
           pip install -r requirements.txt
 
-      # Cache Playwright browser downloads
+      # Ensure Node is available for playwright install-deps
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Cache Playwright browsers (faster)
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-msplaywright-${{ hashFiles('**/requirements.txt') }}
 
+      # Install Playwright system dependencies (Ubuntu)
+      - name: Install Playwright system deps
+        run: npx playwright install-deps
+
       - name: Init Playwright browsers
         run: |
           . .venv/bin/activate
           rfbrowser init
 
-      # Best-effort: some runner images need extra libs for WebKit/Firefox
-      - name: Install Playwright system deps
-        continue-on-error: true
-        run: npx playwright install-deps
+      # (Optional) sanity: show versions
+      - name: Versions
+        run: |
+          . .venv/bin/activate
+          python -V
+          robot --version
+          pabot --version
+          rfbrowser --version
+          node -v
+          npx -v
+          python -c "import Browser; import robot; import pabot; print('Browser lib:', Browser.__version__)"
 
       - name: Run Robot tests (Pabot)
         env:
@@ -58,7 +74,8 @@ jobs:
           BROWSER: ${{ matrix.browser }}
         run: |
           . .venv/bin/activate
-          pabot -d results --processes 4 tests
+          mkdir -p results
+          pabot -d results --processes 2 tests
 
       - name: Rerun failures & merge (optional)
         if: always()
