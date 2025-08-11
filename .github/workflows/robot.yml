@@ -4,6 +4,10 @@ on:
   push:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -31,10 +35,22 @@ jobs:
           . .venv/bin/activate
           pip install -r requirements.txt
 
+      # Cache Playwright browser downloads
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-msplaywright-${{ hashFiles('**/requirements.txt') }}
+
       - name: Init Playwright browsers
         run: |
           . .venv/bin/activate
           rfbrowser init
+
+      # Best-effort: some runner images need extra libs for WebKit/Firefox
+      - name: Install Playwright system deps
+        continue-on-error: true
+        run: npx playwright install-deps
 
       - name: Run Robot tests (Pabot)
         env:
@@ -62,3 +78,4 @@ jobs:
             results/
             results_rerun/
             results_merged/
+          retention-days: 7
