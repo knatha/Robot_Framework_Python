@@ -1,15 +1,10 @@
-name: Robot CI
+name: Robot CI (smoke first)
 
 on:
   push:
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  # 0) Quick smoke on Chromium to reveal the root error & always upload logs
   smoke:
     runs-on: ubuntu-latest
     steps:
@@ -18,39 +13,40 @@ jobs:
         with: { python-version: '3.11' }
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
+
       - name: Install Python deps
         run: |
           python -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
+          python -c "import Browser, robot; print('Browser:', Browser.__version__); print('Robot:', robot.__version__)"
+
+      # Install Linux libs for Playwright (Ubuntu)
       - name: Install Playwright system deps
         run: npx playwright install-deps
-      - name: Init Playwright browsers
+
+      - name: Init Playwright browsers (rfbrowser)
         run: |
           . .venv/bin/activate
           rfbrowser init
-      - name: Versions
-        run: |
-          . .venv/bin/activate
-          python -V
-          robot --version
-          pabot --version
-          rfbrowser --version || true
-          python -c "import Browser, sys; print('Browser lib:', getattr(Browser,'__version__','?'))"
-      - name: Run SMOKE (ui_login only) with TRACE logs
+
+      - name: Run SMOKE (ui_login.robot) with TRACE
         env:
           HEADLESS: "True"
-          BROWSER: chromium
+          BROWSER: "chromium"
         run: |
           . .venv/bin/activate
           mkdir -p smoke_results
-          robot -L TRACE -d smoke_results tests/ui_login.robot || true   # don't fail the job; we want artifacts
+          robot -L TRACE -d smoke_results tests/ui_login.robot
+
       - name: Upload smoke artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: smoke-artifacts
           path: smoke_results/
+          retention-days: 7
+
 
   # 1) Full matrix after smoke (so we still get artifacts if it fails)
   tests:
