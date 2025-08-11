@@ -9,65 +9,84 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
+  # 0) Quick smoke on Chromium to reveal the root error & always upload logs
+  smoke:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        browser: [chromium, firefox, webkit]
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-
-      - name: Install deps
+        with: { python-version: '3.11' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Install Python deps
         run: |
           python -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
-
-      # Ensure Node is available for playwright install-deps
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      # Cache Playwright browsers (faster)
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-msplaywright-${{ hashFiles('**/requirements.txt') }}
-
-      # Install Playwright system dependencies (Ubuntu)
       - name: Install Playwright system deps
         run: npx playwright install-deps
-
       - name: Init Playwright browsers
         run: |
           . .venv/bin/activate
           rfbrowser init
-
-      # (Optional) sanity: show versions
       - name: Versions
         run: |
           . .venv/bin/activate
           python -V
           robot --version
           pabot --version
-          rfbrowser --version
-          node -v
-          npx -v
-          python -c "import Browser; import robot; import pabot; print('Browser lib:', Browser.__version__)"
+          rfbrowser --version || true
+          python -c "import Browser, sys; print('Browser lib:', getattr(Browser,'__version__','?'))"
+      - name: Run SMOKE (ui_login only) with TRACE logs
+        env:
+          HEADLESS: "True"
+          BROWSER: chromium
+        run: |
+          . .venv/bin/activate
+          mkdir -p smoke_results
+          robot -L TRACE -d smoke_results tests/ui_login.robot || true   # don't fail the job; we want artifacts
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-artifacts
+          path: smoke_results/
 
+  # 1) Full matrix after smoke (so we still get artifacts if it fails)
+  tests:
+    needs: smoke
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+      - name: Install Python deps
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -r requirements.txt
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-msplaywright-${{ hashFiles('**/requirements.txt') }}
+      - name: Install Playwright system deps
+        run: npx playwright install-deps
+      - name: Init Playwright browsers
+        run: |
+          . .venv/bin/activate
+          rfbrowser init
       - name: Run Robot tests (Pabot)
         env:
           HEADLESS: "True"
@@ -76,23 +95,10 @@ jobs:
           . .venv/bin/activate
           mkdir -p results
           pabot -d results --processes 2 tests
-
-      - name: Rerun failures & merge (optional)
-        if: always()
-        run: |
-          . .venv/bin/activate
-          if [ -f results/output.xml ]; then
-            robot --rerunfailed results/output.xml -d results_rerun tests || true
-            rebot --merge -d results_merged results/output.xml results_rerun/output.xml || true
-          fi
-
-      - name: Upload results artifact
+      - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: robot-results-${{ matrix.browser }}
-          path: |
-            results/
-            results_rerun/
-            results_merged/
+          path: results/
           retention-days: 7
