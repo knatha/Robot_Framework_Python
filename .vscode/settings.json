@@ -1,0 +1,8 @@
+{
+  "python.defaultInterpreterPath": ".venv/bin/python",
+  "robot.language-server.python": ".venv/bin/python",
+  "files.associations": {
+    "*.robot": "robot"
+  },
+  "editor.formatOnSave": true
+}

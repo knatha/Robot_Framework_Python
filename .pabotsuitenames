@@ -1,0 +1,5 @@
+datasources:898045bb39120c742156afa97a3d9eefb12293e8
+commandlineoptions:97d170e1550eee4afc0af065b78cda302a97674c
+suitesfrom:no-suites-from-option
+file:45cdfa169994a99ec830dee62e1517862793b0b3
+--suite Tests.Ui Smoke

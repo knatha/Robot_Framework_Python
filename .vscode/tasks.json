@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Robot: Run All",
+      "type": "shell",
+      "command": "robot -d results tests",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Robot: Parallel (pabot)",
+      "type": "shell",
+      "command": "pabot -d results --processes 4 tests",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Robot: Init Browsers",
+      "type": "shell",
+      "command": "rfbrowser init",
+      "problemMatcher": []
+    },
+    {
+      "label": "Robot: Parallel (to TEMP)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$out = Join-Path $env:TEMP ('rf_results_' + (Get-Date -Format yyyyMMdd_HHmmss)); New-Item -ItemType Directory -Force $out | Out-Null; .\\.venv\\Scripts\\pabot.exe -d $out --processes 4 tests; Start-Process explorer.exe $out"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

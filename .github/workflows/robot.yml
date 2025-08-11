@@ -1,0 +1,64 @@
+name: Robot CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+
+      - name: Install deps
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Init Playwright browsers
+        run: |
+          . .venv/bin/activate
+          rfbrowser init
+
+      - name: Run Robot tests (Pabot)
+        env:
+          HEADLESS: "True"
+          BROWSER: ${{ matrix.browser }}
+        run: |
+          . .venv/bin/activate
+          pabot -d results --processes 4 tests
+
+      - name: Rerun failures & merge (optional)
+        if: always()
+        run: |
+          . .venv/bin/activate
+          if [ -f results/output.xml ]; then
+            robot --rerunfailed results/output.xml -d results_rerun tests || true
+            rebot --merge -d results_merged results/output.xml results_rerun/output.xml || true
+          fi
+
+      - name: Upload results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-results-${{ matrix.browser }}
+          path: |
+            results/
+            results_rerun/
+            results_merged/
