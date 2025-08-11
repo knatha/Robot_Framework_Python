@@ -32,14 +32,14 @@ jobs:
           . .venv/bin/activate
           rfbrowser init
 
-      - name: Run SMOKE (ui_login.robot) with TRACE
+      - name: Run SMOKE (ui_login.robot) with TRACE + Allure
         env:
           HEADLESS: "True"
           BROWSER: "chromium"
         run: |
           . .venv/bin/activate
           mkdir -p smoke_results
-          robot -L TRACE -d smoke_results tests/ui_login.robot
+          robot --listener "allure_robotframework;smoke_results/allure" -L TRACE -d smoke_results tests/ui_login.robot
 
       - name: Upload smoke artifacts
         if: always()
@@ -52,6 +52,7 @@ jobs:
 
   # 1) Full matrix after smoke (so we still get artifacts if it fails)
   tests:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs: smoke
     runs-on: ubuntu-latest
     strategy:
